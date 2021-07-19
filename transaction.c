@@ -27,12 +27,12 @@ typedef struct {
 void read_scaling(scaling_t *);
 void print_transaction(scaling_t *, int, int);
 void print_scaling(scaling_t *);
-int find_error(scaling_t *, char, char, int, int, int);
+int find_conflict(scaling_t *, char, char, int, int, int);
 mask_t test_serial_conflict(scaling_t *);
 mask_t test_vision(scaling_t *);
 void print_results(scaling_t *, mask_t, mask_t);
 mask_t check_graph_loop(graph_t *);
-int seach_graph(graph_t *, mask_t, int, int);
+int seach_graph(graph_t *, mask_t, int, int, int);
 
 int main()
 {    
@@ -71,10 +71,12 @@ void read_scaling(scaling_t *s)
         buff.transaction;
         if (buff.transaction > t) t = buff.transaction;
         if (t > MAX_TRANSACTIONS || i > MAX_SCALING) break;
-        if (s->s[buff.timestamp][buff.transaction].timestamp) {
+
+        if (buff.timestamp < i) {
             i++;
             break;
         }
+
         memcpy(&s->s[buff.timestamp][buff.transaction-1], 
                 &buff, sizeof(transaction_t));
         i++;
@@ -96,12 +98,13 @@ void read_scaling(scaling_t *s)
 
 void print_transaction(scaling_t *s, int i, int j)
 {
-    printf("%c ", s->s[i][j].transaction ? 
-                    s->s[i][j].transaction+48 : ' ');
-    printf("%c ", s->s[i][j].operation ? 
-                    s->s[i][j].operation : ' ');
-    printf("%c ", s->s[i][j].atribute ? 
-                    s->s[i][j].atribute : ' ');
+    if (s->s[i][j].transaction) {
+        printf("%c ", s->s[i][j].transaction+48);
+        printf("%c ", s->s[i][j].operation);
+        printf("%c ", s->s[i][j].atribute);
+    } else {
+        printf("%6c", ' ');
+    }
 }
 
 void print_scaling(scaling_t *s)
@@ -139,16 +142,14 @@ mask_t test_serial_conflict(scaling_t *s)
                 case '\0':
                     break;
                 case 'R':
-                    conflict = find_error(s, 'R', s->s[i][j].atribute, j, i, base);
+                    conflict = find_conflict(s, 'R', s->s[i][j].atribute, j, i, base);
                     if (conflict >= 0) {
-                        // printf("ALO R %d %d\n", conflict, j);
                         gr.g[conflict][j] = 1;
                     }
                     break;
                 case 'W':
-                    conflict = find_error(s, 'W', s->s[i][j].atribute, j, i, base);
+                    conflict = find_conflict(s, 'W', s->s[i][j].atribute, j, i, base);
                     if (conflict >= 0) {
-                        // printf("ALO W %d %d\n", conflict, j);
                         gr.g[conflict][j] = 1;
                     }
                     break;
@@ -174,20 +175,19 @@ mask_t test_serial_conflict(scaling_t *s)
         }
         printf("\n");
     }
+    printf("\n");
 
     return check_graph_loop(&gr);
 
 }
 
-int find_error(scaling_t *s, char op, char at, int trans, int time, int base)
+int find_conflict(scaling_t *s, char op, char at, int trans, int time, int base)
 {
-    // printf("search: %c %c %d %d %d\n", op, at, trans, time, base);
     for (int i = 0; i < s->time && i < time; i++) {
         for (int j = base; j < s->transactions; j++) {
             if (j == trans || !s->s[i][j].operation || s->s[i][j].atribute != at) continue;
 
             if ((op == 'R' && s->s[i][j].operation == 'W') || op == 'W') {
-                // printf("res: %d %d %d\n", trans, i, j);
                 return j;
             }
         }
@@ -199,25 +199,25 @@ mask_t check_graph_loop(graph_t *gr)
 {
     mask_t res = 0;
     for (int i = 0; i < gr->n; i++) {
-        if (seach_graph(gr, 0, i, i)) {
+        if (seach_graph(gr, 0, i, i, 0)) {
             res |= 1 << i;
         }   
     }     
     return res;
 }
 
-int seach_graph(graph_t *gr, mask_t path, int curr, int obj)
+int seach_graph(graph_t *gr, mask_t path, int curr, int obj, int lim)
 {
     if (path && curr == obj) return 1;
     for (int i = 0; i < gr->n; i++) {
         if (i != curr && 
             gr->g[curr][i] && 
-            seach_graph(gr, path | 1 << curr, i, obj)) {
+            lim < gr->n*gr->n &&
+            seach_graph(gr, path | 1 << curr, i, obj, lim+1)) {
             return 1;
         }
     }
     return 0;
-    
 }
 
 mask_t test_vision(scaling_t *s)
@@ -248,19 +248,23 @@ void print_results(scaling_t *s,
     }
     if (flag) printf(" NS\n");
     
-    flag = 0;
+    int flag2 = 0;
 
     for (int i = 0; i < s->transactions; i++) {
         if (serial_ok & 1 << i) {
-            if (flag) {
+            if (flag2) {
                 printf(",");
             } else {
-                printf("2 ");
+                if (flag) {
+                    printf("2 ");
+                } else {
+                    printf("1 ");
+                }
             }
             printf("%d", i+1);
-            flag = 1;
+            flag2 = 1;
         }
     }
-    if (flag) printf(" SS\n");
+    if (flag2) printf(" SS\n");
 
 }
