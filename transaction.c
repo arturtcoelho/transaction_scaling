@@ -40,7 +40,7 @@ int main()
 {    
     scaling_t scaling;
     read_scaling(&scaling);
-    print_scaling(&scaling);
+    // print_scaling(&scaling);
 
     mask_t serial_res = test_serial_conflict(&scaling);
     mask_t vision_res = test_vision(&scaling);
