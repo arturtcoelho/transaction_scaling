@@ -40,7 +40,7 @@ int main()
 {    
     scaling_t scaling;
     read_scaling(&scaling);
-    print_scaling(&scaling);
+    // print_scaling(&scaling);
 
     mask_t serial_res = test_serial_conflict(&scaling);
     mask_t vision_res = test_vision(&scaling);
@@ -191,7 +191,7 @@ int find_conflict(scaling_t *s, char op, char at, int trans, int time, int base)
 {
     for (int i = 0; i < s->time && i < time; i++) {
         for (int j = base; j < s->transactions; j++) {
-            if (j == trans || !s->s[i][j].operation || s->s[i][j].atribute != at) continue;
+            if (j == trans || !s->s[i][j].operation) continue;
 
             if ((op == 'R' && s->s[i][j].operation == 'W') || op == 'W') {
                 return j;
@@ -368,7 +368,7 @@ void print_results(scaling_t *s,
                     mask_t serial_res, 
                     mask_t vision_res)
 {
-    // printf("%ld, %ld\n", serial_res, vision_res);
+    printf("%ld, %ld\n", serial_res, vision_res);
 
     mask_t cases[] = {serial_res & vision_res,
                         serial_res & ~vision_res,
